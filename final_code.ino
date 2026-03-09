@@ -4,7 +4,11 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Servo.h>
-#include <String.h>              
+#include <String.h>  
+// Define portas do Arduino para os LEDs RGB
+// RED1 - LED Vermelho da Vaga 1
+// BLUE1 - LED Azul da vaga 1
+// GREEN5 - LED Verde da vaga 5
 #define RED1 2
 #define RED2 3
 #define RED3 4
@@ -25,11 +29,20 @@
 #define GREEN8 28
 #define GREEN9 29
 #define GREEN10 30
+
+//Define portas dos servos
 #define pinservoent 31
 #define pinservosai 32
+
+//Portas do módulo MFRC522 RFID
 #define SS_PIN 53 //SDA = SS
 #define RST_PIN 5
-#define LDRP A0
+
+//Define portas dos sensores LDR
+// LDRP é o LDR de parâmetro
+// LDR1 é o LDR da vaga 1
+// LDRent e LDRsai são os sensores usados na entrada e saída do restacionamento, respectivamente
+#define LDRP A0 
 #define LDR1 A1
 #define LDR2 A2
 #define LDR3 A3
@@ -42,11 +55,17 @@
 #define LDR10 A10
 #define LDRent A11
 #define LDRsai A12
+
+//Declara servos, sensor RFID, Display LCD
 Servo servoent, servosai;
 MFRC522 rfid(SS_PIN, RST_PIN);
 LiquidCrystal_I2C lcd(0x27,20,4);
+
+//Variáveis usadas na contabilização de vagas ocupadas e desocupadas
 int blue1, blue2, blue3, blue4, green5, green6, green7, green8, green9, green10;
-int x, c, v, n, r;
+int totalVagas, cadeirantes, idosos, naoPreferenciais;
+
+//Conteúdo a ser exibido pelo celular do segurança
 String conteudo;
 void setup()
 {
@@ -97,6 +116,8 @@ void setup()
 
 void loop()
 {
+  // Para cada vaga, compara-se o valor de seu respectivo sensor LDR com o LDRP
+  // Se LDRX >= LDRP - 10 está X ocupada, senão está desocupada.
   if(analogRead(LDR1) >= analogRead(LDRP) - 10)
   {
    digitalWrite(BLUE1, HIGH);
@@ -108,7 +129,6 @@ void loop()
    digitalWrite(BLUE1, LOW);
    digitalWrite(RED1, HIGH);
    blue1 = 0;
-   r = 0;
   }
 
   if(analogRead(LDR2) >= analogRead(LDRP) - 10)
@@ -228,11 +248,13 @@ if(analogRead(LDR4) >= analogRead(LDRP) - 10)
    blue3 = 0;
   }
 
-  x = blue1 + blue2 + blue3 + blue4 + green5 + green6 + green7 + green8 + green9 + green10; //total de vagas disponíveis
-  c = blue1 + blue2; //vagas p/ cadeirante disponíveis
-  v = blue3 + blue4; //vagas p/ idosos disponíveis
-  n = green5 + green6 + green7 + green8 + green9 + green10; //vagas não preferenciais disponíveis
-  if (x == 0)
+  totalVagas = blue1 + blue2 + blue3 + blue4 + green5 + green6 + green7 + green8 + green9 + green10; //total de vagas disponíveis
+  cadeirantes = blue1 + blue2; //vagas p/ cadeirante disponíveis
+  idosos = blue3 + blue4; //vagas p/ idosos disponíveis
+  naoPreferenciais = green5 + green6 + green7 + green8 + green9 + green10; //vagas não preferenciais disponíveis
+
+  // Exibe mensagem no display de acordo com o número de vagas ocupadas
+  if (totalVagas == 0)
   {
   lcd.setCursor(0,0);
   lcd.print("                 ");
@@ -249,20 +271,21 @@ if(analogRead(LDR4) >= analogRead(LDRP) - 10)
     lcd.print("Vagas disponiveis");
     lcd.setCursor(0,1);
     lcd.print("cadeirantes: ");
-    lcd.print(c);
+    lcd.print(cadeirantes);
     lcd.setCursor(14,1);
     lcd.print("    ");
     lcd.setCursor(0,2);
     lcd.print("idosos: ");
-    lcd.print(v);
+    lcd.print(idosos);
     lcd.setCursor(9,2);
     lcd.print("    ");
     lcd.setCursor(0,3);
     lcd.print("nao preferenciais: ");
-    lcd.print(n);
+    lcd.print(naoPreferenciais);
   }
 
-  if((analogRead(LDRent) + 10 < analogRead(LDRP)) && (x != 0))
+  //Controle do movimento dos servos com base nos valores de seus sensores LDR
+  if((analogRead(LDRent) + 10 < analogRead(LDRP)) && (totalVagas != 0))
   {
   servoent.write(0);
   }
@@ -288,10 +311,9 @@ if(analogRead(LDR4) >= analogRead(LDRP) - 10)
   {
     return;
   }
- 
+  
+ //Lógica para detectar tag inválida na vaga A1
    conteudo = "";
-   
-
   for (byte i = 0; i < rfid.uid.size; i++)
   {
     rfid.uid.uidByte[i] < 0x10 ? " 0" : " ";
